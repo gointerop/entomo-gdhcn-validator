@@ -12,7 +12,7 @@ import lombok.Data;
  * @organization entomo Labs
  */
 @Data
-@JsonIgnoreProperties
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class GdhcnCertificateVO {
 	private String uuid;
 	@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")

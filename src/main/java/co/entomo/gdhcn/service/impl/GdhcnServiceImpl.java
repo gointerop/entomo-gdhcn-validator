@@ -16,8 +16,9 @@ import co.entomo.gdhcn.util.AmazonClientUtil;
 import co.entomo.gdhcn.util.CertificateUtils;
 import co.entomo.gdhcn.util.HttpClientUtils;
 import co.entomo.gdhcn.vo.*;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 import lombok.extern.slf4j.Slf4j;
 import nl.minvws.encoding.Base45;
 import org.apache.commons.compress.compressors.CompressorException;
@@ -70,7 +71,8 @@ public class GdhcnServiceImpl implements GdhcnService {
 
     @Autowired
     private GdhcnFileSystem gdhcnFileSystem;
-    private ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private final JsonMapper OBJECT_MAPPER = JsonMapper.builder()
+            .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build();
 
     @Override
     public String vshcIssuance(QrCodeRequest qrCodeRequest) throws GdhcnValidationException {
@@ -125,7 +127,7 @@ public class GdhcnServiceImpl implements GdhcnService {
             OneKey cborPrivateKey = new OneKey(null, privateKey);
             String encoded = new GreenCertificateEncoder(cborPrivateKey, kidId).encode(payLoadJson);
             return encoded;
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             e.printStackTrace();
         } catch (CoseException e) {
             e.printStackTrace();
