@@ -139,9 +139,3 @@ the default AWS credential provider chain is used.
 
 `./mvnw verify` runs unit tests, an issue -> validate round trip over the REST API, and integration tests against
 real PostgreSQL and S3Mock containers. The container tests are skipped automatically when Docker is not available.
-
-## License
-
-The upstream project (`gdhcnentomo/entomo-gdhcn-validator`) does not declare a license, so no usage or redistribution
-rights have been granted by it. This fork keeps that status until the copyright holder (Entomo) confirms a license;
-once they do, add a `LICENSE` file and update this section.
