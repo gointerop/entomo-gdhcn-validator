@@ -78,9 +78,18 @@ class PostgresMigrationTests {
 		void flywayAppliedTheBaselineAndHibernateValidatedIt() {
 			List<Map<String, Object>> history = jdbc.queryForList(
 					"select version, success from flyway_schema_history where version is not null order by installed_rank");
-			assertEquals(1, history.size());
-			assertEquals("1", history.get(0).get("version"));
-			assertEquals(true, history.get(0).get("success"));
+			assertEquals(List.of("1", "2"), history.stream().map(h -> h.get("version")).toList());
+			history.forEach(h -> assertEquals(true, h.get("success")));
+		}
+
+		@Test
+		void manifestIdIndexesExistAndAreValid() {
+			List<String> valid = jdbc.queryForList("""
+					select c.relname from pg_index i join pg_class c on c.oid = i.indexrelid
+					where i.indisvalid and c.relname in ('idx_qr_code_manifest_id', 'idx_ips_file_manifest_id')
+					order by c.relname
+					""", String.class);
+			assertEquals(List.of("idx_ips_file_manifest_id", "idx_qr_code_manifest_id"), valid);
 		}
 
 		@Test
@@ -132,10 +141,11 @@ class PostgresMigrationTests {
 
 			Flyway flyway = Flyway.configure()
 					.dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
-					.baselineOnMigrate(true).baselineVersion("1").load();
+					.baselineOnMigrate(true).baselineVersion("1")
+					.configuration(Map.of("flyway.postgresql.transactional.lock", "false")).load();
 			var result = flyway.migrate();
 			assertTrue(result.success);
-			assertEquals(0, result.migrationsExecuted, "baseline must not re-run on an existing schema");
+			assertEquals(1, result.migrationsExecuted, "only V2 runs; the baseline must not re-run on an existing schema");
 
 			try (Connection c = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(),
 					postgres.getPassword()); Statement st = c.createStatement()) {
@@ -146,6 +156,14 @@ class PostgresMigrationTests {
 				rs.next();
 				assertEquals("1", rs.getString("version"));
 				assertEquals("BASELINE", rs.getString("type"));
+				rs.next();
+				assertEquals("2", rs.getString("version"));
+				assertEquals("SQL", rs.getString("type"));
+				rs = st.executeQuery("""
+						select count(*) from pg_indexes
+						where indexname in ('idx_qr_code_manifest_id', 'idx_ips_file_manifest_id')""");
+				rs.next();
+				assertEquals(2, rs.getInt(1));
 			}
 		}
 

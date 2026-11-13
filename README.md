@@ -128,6 +128,7 @@ For any questions or support, please reach out to <a href="">gdhcn@entomo.co</a>
 The schema is owned by Flyway (`src/main/resources/db/migration`); Hibernate only validates it (`ddl-auto=validate`).
 Databases that were created by the earlier `ddl-auto=update` setup are baselined at version 1 on first start
 (`spring.flyway.baseline-on-migrate=true`), so no data is touched. Add schema changes as new `V<n>__*.sql` files; never edit an applied one.
+`V2` builds the `manifest_id` indexes with `CREATE INDEX CONCURRENTLY` (no write lock), which is why `spring.flyway.postgresql.transactional-lock=false` is set; keep it set if you migrate with your own Flyway setup.
 
 ## S3 storage
 
