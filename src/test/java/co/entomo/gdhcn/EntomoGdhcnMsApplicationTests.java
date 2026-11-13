@@ -1,63 +1,67 @@
 package co.entomo.gdhcn;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import org.apache.commons.compress.compressors.CompressorException;
+import java.net.http.HttpClient;
+import java.nio.charset.StandardCharsets;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-import com.authlete.cwt.CWT;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import COSE.CoseException;
+import COSE.AlgorithmID;
+import COSE.Attribute;
+import COSE.HeaderKeys;
 import COSE.Message;
 import COSE.MessageTag;
 import COSE.OneKey;
 import COSE.Sign1Message;
-import co.entomo.gdhcn.exceptions.GdhcnValidationException;
-import co.entomo.gdhcn.hcert.GreenCertificateDecoder;
 import co.entomo.gdhcn.service.GdhcnService;
-import co.entomo.gdhcn.util.CertificateUtils;
-import co.entomo.gdhcn.util.HttpClientUtils;
-import co.entomo.gdhcn.vo.CertificatePayload;
-import co.entomo.gdhcn.vo.GdhcnCertificateVO;
-import co.entomo.gdhcn.vo.QrCodeRequest;
-import co.entomo.gdhcn.vo.StepStatus;
 import nl.minvws.encoding.Base45;
 
 @SpringBootTest
+@ActiveProfiles({ "test", "fileSystem" })
 class EntomoGdhcnMsApplicationTests {
+
+	/** The real bean loads mTLS key material from disk; tests must not depend on it. */
+	@MockitoBean
+	HttpClient httpClient;
 
 	@Autowired
 	GdhcnService gdhcnService;
-	@Autowired
-	HttpClientUtils httpClientUtils;
-	@Autowired
-	CertificateUtils certificateUtils;
-	private ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
 	@Test
 	void contextLoads() {
+		assertNotNull(gdhcnService);
 	}
+
 	@Test
-	void testRest() throws IOException, InterruptedException, GdhcnValidationException 
-	{
-		GdhcnCertificateVO vo = httpClientUtils.getGdhcnCertificate("XM","qb4L0atiX/4=");
-		PublicKey pk = certificateUtils.getPublicKey(vo.getCertificate());
-		System.out.println(pk.getFormat());
-       
+	void base45RoundTrip() {
+		byte[] data = "shlink://ababcbc".getBytes(StandardCharsets.UTF_8);
+		byte[] encoded = Base45.getEncoder().encode(data);
+		assertArrayEquals(data, Base45.getDecoder().decode(encoded));
 	}
-	
+
+	/** Exercises cose-java together with the pinned com.upokecenter:cbor release. */
 	@Test
-	void base45() {
-		byte[] data = Base45.getEncoder().encode("shlink://ababcbc".getBytes(StandardCharsets.UTF_8));
-		String json = new String(Base45.getDecoder().decode(data));
+	void coseSign1RoundTrip() throws Exception {
+		OneKey key = OneKey.generateKey(AlgorithmID.ECDSA_256);
+		byte[] payload = "{\"hello\":\"gdhcn\"}".getBytes(StandardCharsets.UTF_8);
+
+		Sign1Message signed = new Sign1Message();
+		signed.addAttribute(HeaderKeys.Algorithm, AlgorithmID.ECDSA_256.AsCBOR(), Attribute.PROTECTED);
+		signed.SetContent(payload);
+		signed.sign(key);
+		byte[] encoded = signed.EncodeToBytes();
+
+		Message decoded = Message.DecodeFromBytes(encoded, MessageTag.Sign1);
+		Sign1Message sign1 = (Sign1Message) decoded;
+		assertTrue(sign1.validate(key));
+		assertEquals(new String(payload, StandardCharsets.UTF_8), new String(sign1.GetContent(), StandardCharsets.UTF_8));
 	}
 }
