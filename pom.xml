@@ -16,7 +16,6 @@
 	<properties>
 		<java.version>21</java.version>
 		<awssdk.version>2.59.0</awssdk.version>
-		<!-- cose-java 1.1.0 (unmaintained) pulls com.upokecenter:cbor 4.0.1 (CVE-2024-23684); pin a patched release -->
 		<upokecenter-cbor.version>4.5.6</upokecenter-cbor.version>
 	</properties>
 	<dependencyManagement>
@@ -78,18 +77,7 @@
 			<version>0.0.3</version>
 		</dependency>
 		<dependency>
-			<groupId>com.augustcellars.cose</groupId>
-			<artifactId>cose-java</artifactId>
-			<version>1.1.0</version>
-			<exclusions>
-				<!-- Ed25519 only; CVE-2020-36843 has no fixed release. HCERT/DSC use ECDSA (ES256) -->
-				<exclusion>
-					<groupId>net.i2p.crypto</groupId>
-					<artifactId>eddsa</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-		<dependency>
+			<!-- CBOR for HCERT payloads and COSE_Sign1 (hcert.CoseSign1); 4.0.1 has CVE-2024-23684 -->
 			<groupId>com.upokecenter</groupId>
 			<artifactId>cbor</artifactId>
 			<version>${upokecenter-cbor.version}</version>
@@ -108,6 +96,19 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
 			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<!-- test only: independent COSE implementation used to cross-check hcert.CoseSign1 -->
+			<groupId>com.augustcellars.cose</groupId>
+			<artifactId>cose-java</artifactId>
+			<version>1.1.0</version>
+			<scope>test</scope>
+			<exclusions>
+				<exclusion>
+					<groupId>net.i2p.crypto</groupId>
+					<artifactId>eddsa</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<!-- test only: builds a self-signed DSC certificate for the issue/validate round trip -->

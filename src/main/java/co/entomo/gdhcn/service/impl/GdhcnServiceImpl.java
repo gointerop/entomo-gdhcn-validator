@@ -1,11 +1,12 @@
 package co.entomo.gdhcn.service.impl;
 
-import COSE.*;
 import co.entomo.gdhcn.entity.IpsFile;
 import co.entomo.gdhcn.entity.QrCode;
 import co.entomo.gdhcn.exceptions.GdhcnIPSAlreadyAccessedException;
 import co.entomo.gdhcn.exceptions.GdhcnQRCodeExpiredException;
 import co.entomo.gdhcn.exceptions.GdhcnValidationException;
+import co.entomo.gdhcn.hcert.CoseException;
+import co.entomo.gdhcn.hcert.CoseSign1;
 import co.entomo.gdhcn.hcert.GreenCertificateDecoder;
 import co.entomo.gdhcn.hcert.GreenCertificateEncoder;
 import co.entomo.gdhcn.repository.IpsFileRepository;
@@ -124,8 +125,7 @@ public class GdhcnServiceImpl implements GdhcnService {
 
             String payLoadJson = OBJECT_MAPPER.writeValueAsString(payload);
             PrivateKey privateKey = certificateUtils.getPrivateKey(getPrivateDSCKeyContent(), countryCode);
-            OneKey cborPrivateKey = new OneKey(null, privateKey);
-            String encoded = new GreenCertificateEncoder(cborPrivateKey, kidId).encode(payLoadJson);
+            String encoded = new GreenCertificateEncoder(privateKey, kidId).encode(payLoadJson);
             return encoded;
         } catch (JacksonException e) {
             e.printStackTrace();
@@ -153,23 +153,22 @@ public class GdhcnServiceImpl implements GdhcnService {
                 updateStatus(response, ++step, ValidationStatus.SUCCESS);
                 byte[] coseBytes = GreenCertificateDecoder.getCoseBytes(decodedBytes);
                 updateStatus(response, ++step, ValidationStatus.SUCCESS);
-                Sign1Message msg = (Sign1Message) Message.DecodeFromBytes(coseBytes, MessageTag.Sign1);
-                log.info("Sign1Message : " + msg.toString());
+                CoseSign1 msg = CoseSign1.decode(coseBytes);
+                log.info("COSE_Sign1 alg={} kid={}", msg.algorithm(), msg.kid());
                 updateStatus(response, ++step, ValidationStatus.SUCCESS);
-                String json = GreenCertificateDecoder.getJsonString(msg.GetContent());
+                String json = GreenCertificateDecoder.getJsonString(msg.payload());
                 log.info("Json : " + json);
                 updateStatus(response, ++step, ValidationStatus.SUCCESS);
                 CertificatePayload certificatePayLoad = OBJECT_MAPPER.readValue(json, CertificatePayload.class);
                 updateStatus(response, ++step, ValidationStatus.SUCCESS);
-                log.info("Protected Header: " + msg.getProtectedAttributes());
-                String kid = msg.getProtectedAttributes().get(HeaderKeys.KID.AsCBOR()).ToObject(String.class);
+                log.info("Protected Header: " + msg.protectedHeaderToString());
+                String kid = msg.kid();
                 GdhcnCertificateVO gdhcnCertificateVO = httpClientUtils.getGdhcnCertificate(certificatePayLoad.getIss(), kid);
                 if (gdhcnCertificateVO == null)
                     throw new RuntimeException("Unable to Fetch GDHCN Certificate");
                 updateStatus(response, ++step, ValidationStatus.SUCCESS);
                 PublicKey publicKey = certificateUtils.getPublicKey(gdhcnCertificateVO.getCertificate());
-                OneKey oneKey = new OneKey(publicKey, null);
-                GreenCertificateDecoder decoder = new GreenCertificateDecoder(oneKey);
+                GreenCertificateDecoder decoder = new GreenCertificateDecoder(publicKey);
                 boolean status = decoder.validate(msg);
                 if (status)
                     updateStatus(response, ++step, ValidationStatus.SUCCESS);

@@ -20,20 +20,20 @@ The **entomo GDHCN Validator** is a microservice designed for validating Verifia
 - **AWS SDK for Java v2:** Interact with Amazon S3.
 - **ModelMapper:** Object mapping for data transformation.
 - **java.net.http.HttpClient:** HTTP client (mutual TLS to the GDHCN trust network).
-- **COSE and Base45:** For encoding and decoding operations.
+- **COSE (in-house) and Base45:** For encoding and decoding operations.
 
 ## Dependencies
 
 - **Spring Boot Starter Web:** For web development.
 - **Spring Boot Starter Data JPA:** For JPA data access.
 - **Spring Boot Starter Test:** For testing purposes.
-- **com.upokecenter CBOR (via COSE):** For CBOR encoding/decoding.
+- **com.upokecenter CBOR:** For CBOR encoding/decoding.
 - **Lombok:** For reducing boilerplate code.
 - **AWS SDK for Java v2 (S3):** For S3 file storage.
 - **PostgreSQL Driver:** For PostgreSQL database connectivity.
 - **ModelMapper:** For object mapping.
 - **Base45:** For Base45 encoding/decoding.
-- **COSE:** For COSE operations.
+- **COSE_Sign1 (in-house, `hcert.CoseSign1`):** For COSE operations.
 - **Commons Compress:** For file compression operations.
 
 ## Configuration
@@ -120,5 +120,5 @@ For any questions or support, please reach out to <a href="">gdhcn@entomo.co</a>
 ## Security maintenance
 
 - Dependabot (Maven and GitHub Actions) and a weekly OSV scan run in CI.
-- `net.i2p.crypto:eddsa` is excluded from `cose-java` (CVE-2020-36843, no fix published). Ed25519-signed COSE messages are therefore not supported; ES256 (ECDSA) is.
+- COSE_Sign1 is implemented in-house (`hcert.CoseSign1`) on the maintained `com.upokecenter:cbor` library. It signs with ES256 and verifies ES256 and PS256 only; Ed25519/EdDSA is intentionally unsupported. `cose-java` is kept as a test-scope cross-check.
 - Building on JDK 23+ works because Lombok is configured explicitly as an annotation processor.

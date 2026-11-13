@@ -1,22 +1,23 @@
 package co.entomo.gdhcn.hcert;
 
-import COSE.*;
-import com.upokecenter.cbor.CBORObject;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.security.PrivateKey;
+
 import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.compress.compressors.CompressorOutputStream;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
 
+import com.upokecenter.cbor.CBORObject;
+
 import nl.minvws.encoding.Base45;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 
 public class GreenCertificateEncoder {
 
-    private final OneKey privateKey;
-    private String kid;
+    private final PrivateKey privateKey;
+    private final String kid;
 
-    public GreenCertificateEncoder(OneKey privateKey, String kid) {
+    public GreenCertificateEncoder(PrivateKey privateKey, String kid) {
         this.privateKey = privateKey;
         this.kid = kid;
     }
@@ -24,17 +25,17 @@ public class GreenCertificateEncoder {
     /**
      * Encodes arbitrary Json String to CBOR -> COSE -> Deflate -> BASE45
      *
-     * @param json
-     * @return
-     * @throws CoseException
-     * @throws CompressorException
-     * @throws IOException
+     * @param json the certificate payload
+     * @return the HC1: prefixed certificate string
+     * @throws CoseException if signing fails
+     * @throws CompressorException if compression fails
+     * @throws IOException on write errors
      */
     public String encode(String json) throws CoseException, CompressorException, IOException {
 
         byte[] cborBytes = getCborBytes(json);
 
-        byte[] coseBytes = getCOSEBytes(cborBytes);
+        byte[] coseBytes = CoseSign1.sign(cborBytes, kid, privateKey);
 
         byte[] deflateBytes = getDeflateBytes(coseBytes);
 
@@ -55,16 +56,6 @@ public class GreenCertificateEncoder {
         }
 
         return deflateOutputStream.toByteArray();
-    }
-
-    private byte[] getCOSEBytes(byte[] cborBytes) throws CoseException {
-        Sign1Message msg = new Sign1Message();
-        msg.addAttribute(HeaderKeys.Algorithm, AlgorithmID.ECDSA_256.AsCBOR(), Attribute.PROTECTED);
-        msg.addAttribute(HeaderKeys.KID, CBORObject.FromObject(kid), Attribute.PROTECTED);
-        msg.SetContent(cborBytes);
-        msg.sign(privateKey);
-
-        return msg.EncodeToBytes();
     }
 
     private byte[] getCborBytes(String json) {
