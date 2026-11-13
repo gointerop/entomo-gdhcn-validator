@@ -14,13 +14,12 @@ The **entomo GDHCN Validator** is a microservice designed for validating Verifia
 
 ## Technologies
 
-- **Spring Boot:** Framework for building and running the application.
-- **Java 17:** Programming language used for development.
+- **Spring Boot 4.1:** Framework for building and running the application.
+- **Java 21 (LTS):** Programming language used for development.
 - **PostgreSQL:** Database for storing application data.
-- **AWS SDK:** Interact with AWS services such as S3.
+- **AWS SDK for Java v2:** Interact with Amazon S3.
 - **ModelMapper:** Object mapping for data transformation.
-- **BouncyCastle:** Cryptographic operations for secure communications.
-- **Apache HttpClient:** HTTP client for making requests.
+- **java.net.http.HttpClient:** HTTP client (mutual TLS to the GDHCN trust network).
 - **COSE and Base45:** For encoding and decoding operations.
 
 ## Dependencies
@@ -28,13 +27,11 @@ The **entomo GDHCN Validator** is a microservice designed for validating Verifia
 - **Spring Boot Starter Web:** For web development.
 - **Spring Boot Starter Data JPA:** For JPA data access.
 - **Spring Boot Starter Test:** For testing purposes.
-- **Authlete CBOR:** For CBOR encoding/decoding.
+- **com.upokecenter CBOR (via COSE):** For CBOR encoding/decoding.
 - **Lombok:** For reducing boilerplate code.
-- **AWS SDK:** For AWS service interactions.
+- **AWS SDK for Java v2 (S3):** For S3 file storage.
 - **PostgreSQL Driver:** For PostgreSQL database connectivity.
 - **ModelMapper:** For object mapping.
-- **BouncyCastle:** For cryptographic operations.
-- **Apache HttpClient:** For HTTP operations.
 - **Base45:** For Base45 encoding/decoding.
 - **COSE:** For COSE operations.
 - **Commons Compress:** For file compression operations.
@@ -119,3 +116,9 @@ For any questions or support, please reach out to <a href="">gdhcn@entomo.co</a>
 ## Acknowledgements
 
 - **HCERT Java Library:** This project utilizes the HCERT Java library for handling health certificate operations. Special thanks to the developers of HCERT Java for their valuable contribution.
+
+## Security maintenance
+
+- Dependabot (Maven and GitHub Actions) and a weekly OSV scan run in CI.
+- `net.i2p.crypto:eddsa` is excluded from `cose-java` (CVE-2020-36843, no fix published). Ed25519-signed COSE messages are therefore not supported; ES256 (ECDSA) is.
+- Building on JDK 23+ works because Lombok is configured explicitly as an annotation processor.

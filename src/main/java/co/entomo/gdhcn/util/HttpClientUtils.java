@@ -7,7 +7,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
 
-import org.apache.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -56,7 +55,7 @@ public class HttpClientUtils {
 
 			HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 			log.info("Response statuc code "+response.statusCode());
-			if(response.statusCode() == HttpStatus.SC_OK)
+			if(response.statusCode() == java.net.HttpURLConnection.HTTP_OK)
 			{
 				log.info("Response Body: "+response.body());				
 				List<GdhcnCertificateVO> voList = OBJECT_MAPPER.readValue(response.body(), new TypeReference<List<GdhcnCertificateVO>>() {});

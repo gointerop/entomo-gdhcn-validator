@@ -1,26 +1,26 @@
 package co.entomo.gdhcn.util;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.InputStream;
-import java.nio.charset.Charset;
 
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.regions.Regions;
-import com.amazonaws.services.s3.model.S3Object;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import java.nio.charset.StandardCharsets;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -34,7 +34,7 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 public class AmazonClientUtil {
 
-	private AmazonS3 s3client;
+	private S3Client s3client;
 	
 	@Value("${aws.bucket.s3.bucket.name}")
     private String bucketName;
@@ -49,9 +49,18 @@ public class AmazonClientUtil {
      */
 	@PostConstruct
     private void initializeAmazonClient() {
-        AWSCredentials credentials = new BasicAWSCredentials(accessKey, secretKey);
-        this.s3client = AmazonS3ClientBuilder.standard().withCredentials(new AWSStaticCredentialsProvider(credentials))
-                .withRegion(Regions.AP_SOUTHEAST_1).build();
+        AwsCredentialsProvider credentials = (accessKey == null || accessKey.isBlank())
+                ? DefaultCredentialsProvider.builder().build()
+                : StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey));
+        this.s3client = S3Client.builder().credentialsProvider(credentials)
+                .region(Region.AP_SOUTHEAST_1).build();
+    }
+
+    @PreDestroy
+    void close() {
+        if (s3client != null) {
+            s3client.close();
+        }
     }
     /**
      * Uploads a file as a string to the specified folder in the S3 bucket.
@@ -62,10 +71,9 @@ public class AmazonClientUtil {
      */
 	public void uploadFileToBucket(String fileName, String fileContent, String folderToUpload) {
         log.info("Uploading file {} to {}", fileName, folderToUpload);
-        ObjectMetadata metadata = new ObjectMetadata();
-        metadata.setContentType("application/json");
-        InputStream stream = new ByteArrayInputStream(fileContent.getBytes(Charset.forName("UTF-8")));
-        s3client.putObject(new PutObjectRequest(bucketName, folderToUpload + "/" + fileName, stream, metadata));
+        PutObjectRequest request = PutObjectRequest.builder().bucket(bucketName)
+                .key(folderToUpload + "/" + fileName).contentType("application/json").build();
+        s3client.putObject(request, RequestBody.fromString(fileContent, StandardCharsets.UTF_8));
     }
     /**
      * Uploads a file to the specified folder in the S3 bucket.
@@ -76,7 +84,9 @@ public class AmazonClientUtil {
      */
 	public void uploadFileToBucket(String fileName, File file, String folderToUpload) {
         log.info("Uploading file {} to {}", fileName, folderToUpload);
-        s3client.putObject(new PutObjectRequest(bucketName, folderToUpload + "/" + fileName, file));
+        PutObjectRequest request = PutObjectRequest.builder().bucket(bucketName)
+                .key(folderToUpload + "/" + fileName).build();
+        s3client.putObject(request, RequestBody.fromFile(file));
     }
 
     /**
@@ -100,7 +110,7 @@ public class AmazonClientUtil {
      * @return an {@code InputStream} representing the content of the retrieved file.
      */
     public InputStream getFileInputStream(String filename, String folderName) {
-        S3Object s3object = s3client.getObject(bucketName, folderName + "/" + filename);
-        return s3object.getObjectContent();
+        return s3client.getObject(GetObjectRequest.builder().bucket(bucketName)
+                .key(folderName + "/" + filename).build());
     }
 }
