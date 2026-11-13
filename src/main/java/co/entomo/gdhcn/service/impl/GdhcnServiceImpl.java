@@ -280,8 +280,10 @@ public class GdhcnServiceImpl implements GdhcnService {
                 }
                 if (qrCode != null) {
                     String fileName = qrCode.getId() + ".json";
-                    InputStream is = gdhcnFileSystem.downloadJson(fileName);
-                    byte[] rawContent = is.readAllBytes();
+                    byte[] rawContent;
+                    try (InputStream is = gdhcnFileSystem.downloadJson(fileName)) {
+                        rawContent = is.readAllBytes();
+                    }
                     String jsonContent = new String(rawContent);
                     log.info("Downloaded json: " + jsonContent);
                     qrCodeRepository.save(qrCode);
@@ -298,8 +300,10 @@ public class GdhcnServiceImpl implements GdhcnService {
             QrCode qrCode = qrCodeRepository.findByManifestId(ipsFile.getManifestId()).get();
             if(qrCode !=null) {
                 String fileName = qrCode.getId() + ".json";
-                InputStream is = gdhcnFileSystem.downloadJson(fileName);
-                byte[] rawContent = is.readAllBytes();
+                byte[] rawContent;
+                try (InputStream is = gdhcnFileSystem.downloadJson(fileName)) {
+                    rawContent = is.readAllBytes();
+                }
                 String jsonContent = new String(rawContent);
                 log.info("Downloaded json: " + jsonContent);
                 ipsFileRepository.save(ipsFile);
@@ -317,8 +321,10 @@ public class GdhcnServiceImpl implements GdhcnService {
             QrCode qrCode = qrCodeRepository.findById(jsonId).get();
             if (qrCode != null) {
                 String fileName = jsonId + ".json";
-                InputStream is = gdhcnFileSystem.downloadJson(fileName);
-                byte[] rawContent = is.readAllBytes();
+                byte[] rawContent;
+                try (InputStream is = gdhcnFileSystem.downloadJson(fileName)) {
+                    rawContent = is.readAllBytes();
+                }
                 String jsonContent = new String(rawContent);
                 log.info("Downloaded json: " + jsonContent);
             }

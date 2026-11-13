@@ -2,6 +2,7 @@ package co.entomo.gdhcn.util;
 
 import java.io.File;
 import java.io.InputStream;
+import java.net.URI;
 
 
 import org.springframework.beans.factory.annotation.Value;
@@ -17,6 +18,7 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import java.nio.charset.StandardCharsets;
@@ -42,6 +44,11 @@ public class AmazonClientUtil {
     private String accessKey;
     @Value("${aws.bucket.access.secret}")
     private String secretKey;
+    /** Optional: S3-compatible endpoint (MinIO, S3Mock, ...). Empty means real AWS S3. */
+    @Value("${aws.bucket.endpoint:}")
+    private String endpoint;
+    @Value("${aws.bucket.region:ap-southeast-1}")
+    private String region;
 
     /**
      * Initializes the Amazon S3 client with the provided credentials and region.
@@ -52,8 +59,12 @@ public class AmazonClientUtil {
         AwsCredentialsProvider credentials = (accessKey == null || accessKey.isBlank())
                 ? DefaultCredentialsProvider.builder().build()
                 : StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey));
-        this.s3client = S3Client.builder().credentialsProvider(credentials)
-                .region(Region.AP_SOUTHEAST_1).build();
+        S3ClientBuilder builder = S3Client.builder().credentialsProvider(credentials)
+                .region(Region.of(region));
+        if (endpoint != null && !endpoint.isBlank()) {
+            builder.endpointOverride(URI.create(endpoint)).forcePathStyle(true);
+        }
+        this.s3client = builder.build();
     }
 
     @PreDestroy

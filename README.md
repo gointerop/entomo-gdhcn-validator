@@ -122,3 +122,21 @@ For any questions or support, please reach out to <a href="">gdhcn@entomo.co</a>
 - Dependabot (Maven and GitHub Actions) and a weekly OSV scan run in CI.
 - COSE_Sign1 is implemented in-house (`hcert.CoseSign1`) on the maintained `com.upokecenter:cbor` library. It signs with ES256 and verifies ES256 and PS256 only; Ed25519/EdDSA is intentionally unsupported. `cose-java` is kept as a test-scope cross-check.
 - Building on JDK 23+ works because Lombok is configured explicitly as an annotation processor.
+
+## Database schema
+
+The schema is owned by Flyway (`src/main/resources/db/migration`); Hibernate only validates it (`ddl-auto=validate`).
+Databases that were created by the earlier `ddl-auto=update` setup are baselined at version 1 on first start
+(`spring.flyway.baseline-on-migrate=true`), so no data is touched. Add schema changes as new `V<n>__*.sql` files; never edit an applied one.
+
+## S3 storage
+
+With the `aws` profile, files go to the configured bucket. Set `aws.bucket.endpoint` to use an S3-compatible
+server (MinIO, S3Mock, ...), and `aws.bucket.region` (default `ap-southeast-1`). If `aws.bucket.access.key` is empty
+the default AWS credential provider chain is used.
+
+## Tests
+
+`./mvnw verify` runs unit tests, an issue -> validate round trip over the REST API, and integration tests against
+real PostgreSQL and S3Mock containers. The container tests are skipped automatically when Docker is not available.
+
