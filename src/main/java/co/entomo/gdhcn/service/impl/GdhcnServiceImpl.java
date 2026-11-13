@@ -1,11 +1,12 @@
 package co.entomo.gdhcn.service.impl;
 
-import COSE.*;
 import co.entomo.gdhcn.entity.IpsFile;
 import co.entomo.gdhcn.entity.QrCode;
 import co.entomo.gdhcn.exceptions.GdhcnIPSAlreadyAccessedException;
 import co.entomo.gdhcn.exceptions.GdhcnQRCodeExpiredException;
 import co.entomo.gdhcn.exceptions.GdhcnValidationException;
+import co.entomo.gdhcn.hcert.CoseException;
+import co.entomo.gdhcn.hcert.CoseSign1;
 import co.entomo.gdhcn.hcert.GreenCertificateDecoder;
 import co.entomo.gdhcn.hcert.GreenCertificateEncoder;
 import co.entomo.gdhcn.repository.IpsFileRepository;
@@ -16,8 +17,9 @@ import co.entomo.gdhcn.util.AmazonClientUtil;
 import co.entomo.gdhcn.util.CertificateUtils;
 import co.entomo.gdhcn.util.HttpClientUtils;
 import co.entomo.gdhcn.vo.*;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 import lombok.extern.slf4j.Slf4j;
 import nl.minvws.encoding.Base45;
 import org.apache.commons.compress.compressors.CompressorException;
@@ -70,7 +72,8 @@ public class GdhcnServiceImpl implements GdhcnService {
 
     @Autowired
     private GdhcnFileSystem gdhcnFileSystem;
-    private ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private final JsonMapper OBJECT_MAPPER = JsonMapper.builder()
+            .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build();
 
     @Override
     public String vshcIssuance(QrCodeRequest qrCodeRequest) throws GdhcnValidationException {
@@ -90,7 +93,7 @@ public class GdhcnServiceImpl implements GdhcnService {
                     .url(shUrl)
                     .flag(qrCodeRequest.getPassCode() != null ? "P" : "U")
                     .label("GDHCN Validator")
-                    .exp(qrCodeRequest.getExpiresOn() != null ? qrCodeRequest.getExpiresOn().getTime() : null)
+                    .exp(qrCodeRequest.getExpiresOn() != null ? qrCodeRequest.getExpiresOn().toEpochMilli() : null)
                     .key(Base64.getUrlEncoder().encodeToString(key))
                     .build();
 
@@ -104,7 +107,7 @@ public class GdhcnServiceImpl implements GdhcnService {
             gdhcnFileSystem.uploadJson(fileName, qrCodeRequest.getJsonContent());
             String shLinkConsent = "shlink://" + Base64.getEncoder().encodeToString(OBJECT_MAPPER.writeValueAsString(shLinkPayload).getBytes(StandardCharsets.UTF_8));
 
-            long expiredInMillies = new Date(Long.MAX_VALUE).getTime() / 1000L;
+            long expiredInMillies = Long.MAX_VALUE / 1000L;
             if (!ObjectUtils.isEmpty(shLinkPayload.getExp())) {
                 expiredInMillies = shLinkPayload.getExp() / 1000L;
             }
@@ -122,10 +125,9 @@ public class GdhcnServiceImpl implements GdhcnService {
 
             String payLoadJson = OBJECT_MAPPER.writeValueAsString(payload);
             PrivateKey privateKey = certificateUtils.getPrivateKey(getPrivateDSCKeyContent(), countryCode);
-            OneKey cborPrivateKey = new OneKey(null, privateKey);
-            String encoded = new GreenCertificateEncoder(cborPrivateKey, kidId).encode(payLoadJson);
+            String encoded = new GreenCertificateEncoder(privateKey, kidId).encode(payLoadJson);
             return encoded;
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             e.printStackTrace();
         } catch (CoseException e) {
             e.printStackTrace();
@@ -151,23 +153,22 @@ public class GdhcnServiceImpl implements GdhcnService {
                 updateStatus(response, ++step, ValidationStatus.SUCCESS);
                 byte[] coseBytes = GreenCertificateDecoder.getCoseBytes(decodedBytes);
                 updateStatus(response, ++step, ValidationStatus.SUCCESS);
-                Sign1Message msg = (Sign1Message) Message.DecodeFromBytes(coseBytes, MessageTag.Sign1);
-                log.info("Sign1Message : " + msg.toString());
+                CoseSign1 msg = CoseSign1.decode(coseBytes);
+                log.info("COSE_Sign1 alg={} kid={}", msg.algorithm(), msg.kid());
                 updateStatus(response, ++step, ValidationStatus.SUCCESS);
-                String json = GreenCertificateDecoder.getJsonString(msg.GetContent());
+                String json = GreenCertificateDecoder.getJsonString(msg.payload());
                 log.info("Json : " + json);
                 updateStatus(response, ++step, ValidationStatus.SUCCESS);
                 CertificatePayload certificatePayLoad = OBJECT_MAPPER.readValue(json, CertificatePayload.class);
                 updateStatus(response, ++step, ValidationStatus.SUCCESS);
-                log.info("Protected Header: " + msg.getProtectedAttributes());
-                String kid = msg.getProtectedAttributes().get(HeaderKeys.KID.AsCBOR()).ToObject(String.class);
+                log.info("Protected Header: " + msg.protectedHeaderToString());
+                String kid = msg.kid();
                 GdhcnCertificateVO gdhcnCertificateVO = httpClientUtils.getGdhcnCertificate(certificatePayLoad.getIss(), kid);
                 if (gdhcnCertificateVO == null)
                     throw new RuntimeException("Unable to Fetch GDHCN Certificate");
                 updateStatus(response, ++step, ValidationStatus.SUCCESS);
                 PublicKey publicKey = certificateUtils.getPublicKey(gdhcnCertificateVO.getCertificate());
-                OneKey oneKey = new OneKey(publicKey, null);
-                GreenCertificateDecoder decoder = new GreenCertificateDecoder(oneKey);
+                GreenCertificateDecoder decoder = new GreenCertificateDecoder(publicKey);
                 boolean status = decoder.validate(msg);
                 if (status)
                     updateStatus(response, ++step, ValidationStatus.SUCCESS);
@@ -184,9 +185,7 @@ public class GdhcnServiceImpl implements GdhcnService {
 
                 if(shLinkContent.getExp()!=null)
                 {
-                    Date expDate = new Date(shLinkContent.getExp());
-                    Date currentDate = new Date(System.currentTimeMillis());
-                    if(currentDate.after(expDate)){
+                    if(Instant.now().isAfter(Instant.ofEpochMilli(shLinkContent.getExp()))){
                         shLinkContent = null;
                         throw new RuntimeException("shlink expired");
                     }
@@ -253,7 +252,7 @@ public class GdhcnServiceImpl implements GdhcnService {
                 ipsFile = ipsFileRepository.save(ipsFile);
             }else{
                 ipsFile = optIpsFile.get();
-                if(ipsFile.getCreatedAt().toInstant().plus(ipsShLinkExpiry, ChronoUnit.MINUTES).isBefore(Instant.now()) || ipsFile.isAccessed())
+                if(ipsFile.getCreatedAt().plus(ipsShLinkExpiry, ChronoUnit.MINUTES).isBefore(Instant.now()) || ipsFile.isAccessed())
                 {
                     ipsFileRepository.delete(ipsFile);
                     ipsFile = new IpsFile();
@@ -281,8 +280,10 @@ public class GdhcnServiceImpl implements GdhcnService {
                 }
                 if (qrCode != null) {
                     String fileName = qrCode.getId() + ".json";
-                    InputStream is = gdhcnFileSystem.downloadJson(fileName);
-                    byte[] rawContent = is.readAllBytes();
+                    byte[] rawContent;
+                    try (InputStream is = gdhcnFileSystem.downloadJson(fileName)) {
+                        rawContent = is.readAllBytes();
+                    }
                     String jsonContent = new String(rawContent);
                     log.info("Downloaded json: " + jsonContent);
                     qrCodeRepository.save(qrCode);
@@ -299,8 +300,10 @@ public class GdhcnServiceImpl implements GdhcnService {
             QrCode qrCode = qrCodeRepository.findByManifestId(ipsFile.getManifestId()).get();
             if(qrCode !=null) {
                 String fileName = qrCode.getId() + ".json";
-                InputStream is = gdhcnFileSystem.downloadJson(fileName);
-                byte[] rawContent = is.readAllBytes();
+                byte[] rawContent;
+                try (InputStream is = gdhcnFileSystem.downloadJson(fileName)) {
+                    rawContent = is.readAllBytes();
+                }
                 String jsonContent = new String(rawContent);
                 log.info("Downloaded json: " + jsonContent);
                 ipsFileRepository.save(ipsFile);
@@ -318,8 +321,10 @@ public class GdhcnServiceImpl implements GdhcnService {
             QrCode qrCode = qrCodeRepository.findById(jsonId).get();
             if (qrCode != null) {
                 String fileName = jsonId + ".json";
-                InputStream is = gdhcnFileSystem.downloadJson(fileName);
-                byte[] rawContent = is.readAllBytes();
+                byte[] rawContent;
+                try (InputStream is = gdhcnFileSystem.downloadJson(fileName)) {
+                    rawContent = is.readAllBytes();
+                }
                 String jsonContent = new String(rawContent);
                 log.info("Downloaded json: " + jsonContent);
             }

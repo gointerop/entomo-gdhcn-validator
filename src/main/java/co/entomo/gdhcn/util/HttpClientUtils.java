@@ -11,8 +11,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 import co.entomo.gdhcn.exceptions.GdhcnValidationException;
 import co.entomo.gdhcn.vo.GdhcnCertificateVO;
@@ -35,7 +37,8 @@ public class HttpClientUtils {
 	HttpClient httpClient;
 	@Value("${gdhcn.dev.url}")
 	private String gdhcnDevUrl;
-	private ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+	private final JsonMapper OBJECT_MAPPER = JsonMapper.builder()
+			.enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build();
 	/**
 	 * Fetches a GDHCN certificate from the trust list for a specific country and KID.
 	 *
@@ -74,7 +77,10 @@ public class HttpClientUtils {
 		} catch (IOException e) {
 			e.printStackTrace();
 			throw new GdhcnValidationException(e.getLocalizedMessage());
+		} catch (JacksonException e) {
+			throw new GdhcnValidationException(e.getLocalizedMessage());
 		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
 			e.printStackTrace();
 			throw new GdhcnValidationException(e.getLocalizedMessage());
 		}

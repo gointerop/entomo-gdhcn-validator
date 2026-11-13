@@ -1,8 +1,10 @@
 package co.entomo.gdhcn.entity;
 
-import java.util.Date;
+import java.time.Instant;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 
@@ -12,8 +14,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.Temporal;
-import jakarta.persistence.TemporalType;
 import lombok.Data;
 
 /**
@@ -31,15 +31,15 @@ public class QrCode {
 	
 	private String passCode;
 	
-	@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
-	@Temporal(TemporalType.TIMESTAMP)
-	private Date expiresOn;
+	@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone = "UTC")
+	@JdbcTypeCode(SqlTypes.TIMESTAMP)
+	private Instant expiresOn;
 	
 	@CreationTimestamp
-	@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
-	@Temporal(TemporalType.TIMESTAMP)
+	@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone = "UTC")
+	@JdbcTypeCode(SqlTypes.TIMESTAMP)
 	@Column(name = "created_at")
-    private Date createdAt;
+    private Instant createdAt;
 	private String countryCode;
 	private String jsonUrl;
 	private String flag;
@@ -48,10 +48,10 @@ public class QrCode {
 	/*
 	@Column(columnDefinition = "boolean default false")
 	private boolean isAccessed;
-	@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
-	@Temporal(TemporalType.TIMESTAMP)
+	@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone = "UTC")
+	@JdbcTypeCode(SqlTypes.TIMESTAMP)
 	@Column(name = "manifest_created_at")
-	private Date manifestCreatedAt;
+	private Instant manifestCreatedAt;
 	 */
 
 	@Column(nullable = false)

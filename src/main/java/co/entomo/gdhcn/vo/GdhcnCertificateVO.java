@@ -1,6 +1,6 @@
 package co.entomo.gdhcn.vo;
 
-import java.util.Date;
+import java.time.Instant;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -12,11 +12,11 @@ import lombok.Data;
  * @organization entomo Labs
  */
 @Data
-@JsonIgnoreProperties
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class GdhcnCertificateVO {
 	private String uuid;
-	@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
-	private Date timestamp;
+	@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'", timezone = "UTC")
+	private Instant timestamp;
 	private String country;
 	private String thumbprint;
 	private String signature;

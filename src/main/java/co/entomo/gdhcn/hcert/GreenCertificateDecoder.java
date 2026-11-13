@@ -1,45 +1,38 @@
 package co.entomo.gdhcn.hcert;
 
-import static org.apache.commons.compress.utils.IOUtils.toByteArray;
-
-import COSE.CoseException;
-import COSE.KeyKeys;
-import COSE.Message;
-import COSE.MessageTag;
-import COSE.OneKey;
-import COSE.Sign1Message;
-import co.entomo.gdhcn.exceptions.GdhcnValidationException;
-
-import com.upokecenter.cbor.CBORObject;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.math.BigInteger;
-import java.security.interfaces.ECPublicKey;
-import java.security.spec.ECPoint;
+import java.nio.charset.StandardCharsets;
+import java.security.PublicKey;
 
-import nl.minvws.encoding.Base45;
 import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.compress.compressors.CompressorInputStream;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
+
+import com.upokecenter.cbor.CBORObject;
+
+import nl.minvws.encoding.Base45;
+
 public class GreenCertificateDecoder {
 
-  private final OneKey publicKey;
+  /** Upper bound for the inflated COSE message; guards against decompression bombs in untrusted QR codes. */
+  public static final int MAX_INFLATED_SIZE = 1 << 20;
 
-  public GreenCertificateDecoder(OneKey publicKey) {
+  private final PublicKey publicKey;
+
+  public GreenCertificateDecoder(PublicKey publicKey) {
     this.publicKey = publicKey;
   }
-
-
 
   /**
    * Decodes base45 encoded string -> Deflate -> COSE -> CBOR -> arbitrary Json String
    *
-   * @param base45String
-   * @return
-   * @throws CompressorException
-   * @throws IOException
-   * @throws CoseException
+   * @param base45String the HC1: prefixed certificate string
+   * @return the certificate payload as JSON
+   * @throws CompressorException if the payload is not valid deflate data
+   * @throws IOException on read errors or if the inflated payload is too large
+   * @throws CoseException if the COSE structure is malformed
    */
   public String decode(String base45String) throws CompressorException, IOException, CoseException {
     if(!base45String.startsWith("HC1:"))
@@ -60,27 +53,26 @@ public class GreenCertificateDecoder {
     ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
     cborObject.WriteJSONTo(byteArrayOutputStream);
 
-    return byteArrayOutputStream.toString("UTF-8");
+    return byteArrayOutputStream.toString(StandardCharsets.UTF_8);
   }
 
   private byte[] getCborBytes(byte[] coseBytes) throws CoseException {
-    Sign1Message msg = (Sign1Message) Message.DecodeFromBytes(coseBytes, MessageTag.Sign1);
-    return msg.GetContent();
+    return CoseSign1.decode(coseBytes).payload();
   }
 
   public static byte[] getCoseBytes(byte[] decodedBytes) throws CompressorException, IOException {
-
-    CompressorInputStream compressedStream = new CompressorStreamFactory()
+    try (CompressorInputStream compressedStream = new CompressorStreamFactory()
             .createCompressorInputStream(CompressorStreamFactory.DEFLATE,
-                    new ByteArrayInputStream(decodedBytes));
-
-    return toByteArray(compressedStream);
-  }
-  public boolean validate(Sign1Message msg){
-      try {
-          return msg.validate(publicKey);
-      } catch (CoseException e) {
-          throw new RuntimeException(e);
+                    new ByteArrayInputStream(decodedBytes))) {
+      byte[] inflated = compressedStream.readNBytes(MAX_INFLATED_SIZE + 1);
+      if (inflated.length > MAX_INFLATED_SIZE) {
+        throw new IOException("Inflated payload exceeds " + MAX_INFLATED_SIZE + " bytes");
       }
+      return inflated;
+    }
+  }
+
+  public boolean validate(CoseSign1 msg){
+    return msg.verify(publicKey);
   }
 }
