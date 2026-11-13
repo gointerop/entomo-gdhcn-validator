@@ -6,9 +6,11 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.GenericGenerator;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
-import java.util.Date;
+import java.time.Instant;
 
 /**
  * @author Uday Matta
@@ -20,15 +22,15 @@ import java.util.Date;
 public class IpsFile
 {
     @Id
-    @GeneratedValue(generator="system-uuid")
-    @GenericGenerator(name="system-uuid", strategy = "uuid2")
+    @GeneratedValue
+    @UuidGenerator
     String id;
 
     @CreationTimestamp
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
-    @Temporal(TemporalType.TIMESTAMP)
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone = "UTC")
+    @JdbcTypeCode(SqlTypes.TIMESTAMP)
     @Column(name = "created_at")
-    Date createdAt;
+    Instant createdAt;
     @Column(nullable = false)
     private String manifestId;
 

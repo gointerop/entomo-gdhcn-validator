@@ -92,7 +92,7 @@ public class GdhcnServiceImpl implements GdhcnService {
                     .url(shUrl)
                     .flag(qrCodeRequest.getPassCode() != null ? "P" : "U")
                     .label("GDHCN Validator")
-                    .exp(qrCodeRequest.getExpiresOn() != null ? qrCodeRequest.getExpiresOn().getTime() : null)
+                    .exp(qrCodeRequest.getExpiresOn() != null ? qrCodeRequest.getExpiresOn().toEpochMilli() : null)
                     .key(Base64.getUrlEncoder().encodeToString(key))
                     .build();
 
@@ -106,7 +106,7 @@ public class GdhcnServiceImpl implements GdhcnService {
             gdhcnFileSystem.uploadJson(fileName, qrCodeRequest.getJsonContent());
             String shLinkConsent = "shlink://" + Base64.getEncoder().encodeToString(OBJECT_MAPPER.writeValueAsString(shLinkPayload).getBytes(StandardCharsets.UTF_8));
 
-            long expiredInMillies = new Date(Long.MAX_VALUE).getTime() / 1000L;
+            long expiredInMillies = Long.MAX_VALUE / 1000L;
             if (!ObjectUtils.isEmpty(shLinkPayload.getExp())) {
                 expiredInMillies = shLinkPayload.getExp() / 1000L;
             }
@@ -186,9 +186,7 @@ public class GdhcnServiceImpl implements GdhcnService {
 
                 if(shLinkContent.getExp()!=null)
                 {
-                    Date expDate = new Date(shLinkContent.getExp());
-                    Date currentDate = new Date(System.currentTimeMillis());
-                    if(currentDate.after(expDate)){
+                    if(Instant.now().isAfter(Instant.ofEpochMilli(shLinkContent.getExp()))){
                         shLinkContent = null;
                         throw new RuntimeException("shlink expired");
                     }
@@ -255,7 +253,7 @@ public class GdhcnServiceImpl implements GdhcnService {
                 ipsFile = ipsFileRepository.save(ipsFile);
             }else{
                 ipsFile = optIpsFile.get();
-                if(ipsFile.getCreatedAt().toInstant().plus(ipsShLinkExpiry, ChronoUnit.MINUTES).isBefore(Instant.now()) || ipsFile.isAccessed())
+                if(ipsFile.getCreatedAt().plus(ipsShLinkExpiry, ChronoUnit.MINUTES).isBefore(Instant.now()) || ipsFile.isAccessed())
                 {
                     ipsFileRepository.delete(ipsFile);
                     ipsFile = new IpsFile();

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -116,8 +117,13 @@ class IssuanceValidationFlowTests {
 	}
 
 	private String issue(String expiresOn) throws Exception {
+		return issue(expiresOn, null);
+	}
+
+	private String issue(String expiresOn, String passCode) throws Exception {
 		String body = "{\"jsonContent\":\"{\\\"resourceType\\\":\\\"Bundle\\\"}\""
-				+ (expiresOn != null ? ",\"expiresOn\":\"" + expiresOn + "\"" : "") + "}";
+				+ (expiresOn != null ? ",\"expiresOn\":\"" + expiresOn + "\"" : "")
+				+ (passCode != null ? ",\"passCode\":\"" + passCode + "\"" : "") + "}";
 		String hc1 = mvc.perform(post("/v2/vshcIssuance").contentType(MediaType.APPLICATION_JSON).content(body))
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
 		assertTrue(hc1.startsWith("HC1:"), "unexpected issuance output: " + hc1);
@@ -159,5 +165,24 @@ class IssuanceValidationFlowTests {
 		stubTrustList(Base64.getEncoder().encodeToString(selfSigned(newKeyPair(), "Other").getEncoded()));
 		validate(hc1).andExpect(status().isOk())
 				.andExpect(jsonPath("$.validationStatus['7'].status").value("FAILED"));
+	}
+
+	@Test
+	void passcodeProtectedLinkYieldsTheIpsExactlyOnce() throws Exception {
+		String hc1 = issue(null, "1234");
+		String url = com.jayway.jsonpath.JsonPath.read(
+				validate(hc1).andReturn().getResponse().getContentAsString(), "$.shLinkContent.url");
+		String manifestId = url.substring(url.lastIndexOf('/') + 1);
+
+		String manifest = mvc.perform(post("/v2/manifests/" + manifestId).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"recipient\":\"r\",\"passcode\":\"1234\"}")).andExpect(status().isOk())
+				.andReturn().getResponse().getContentAsString();
+		String location = com.jayway.jsonpath.JsonPath.read(manifest, "$.files[0].location");
+		String ipsId = location.substring(location.lastIndexOf('/') + 1);
+
+		mvc.perform(get("/v2/ips-json/" + ipsId)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.resourceType").value("Bundle"));
+		// single use: the second download is refused
+		mvc.perform(get("/v2/ips-json/" + ipsId)).andExpect(status().is4xxClientError());
 	}
 }

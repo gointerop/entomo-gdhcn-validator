@@ -1,6 +1,6 @@
 package co.entomo.gdhcn.vo;
 
-import java.util.Date;
+import java.time.Instant;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 
@@ -20,8 +20,8 @@ import lombok.NoArgsConstructor;
 public class QrCodeRequest {
 
 	private String passCode;
-	@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
-	private Date expiresOn;
+	@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone = "UTC")
+	private Instant expiresOn;
 	@NotBlank(message = "jsonContent is mandatory")
 	private String jsonContent;
 }
