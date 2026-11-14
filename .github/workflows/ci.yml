@@ -21,9 +21,17 @@ jobs:
       - name: Build and test
         run: ./mvnw -B verify
 
-  docker:
+  docker-demo:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
-      - name: Build image
-        run: docker build -t gdhcn-validator:ci .
+      - name: Start the demo stack (builds the image)
+        run: docker compose up --build -d
+      - name: Smoke test
+        run: sh docker/demo/smoke.sh
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

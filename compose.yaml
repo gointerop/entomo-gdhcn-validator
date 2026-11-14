@@ -1,0 +1,75 @@
+# Zero-configuration demo: `docker compose up --build`
+#
+#   db        PostgreSQL (Flyway creates the schema on first start)
+#   init      generates throwaway DSC / TLS keys and a matching mock WHO trust list, then exits
+#   tng-mock  serves that trust list, standing in for the real WHO TNG (which needs a registered mTLS certificate)
+#   app       the validator on http://localhost:8082
+#
+# For demonstration only: keys are generated locally, the database password is fixed and nothing is
+# protected. Use real configuration (see README, "Docker") for anything else.
+name: gdhcn-demo
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: gdhcn
+      POSTGRES_PASSWORD: demo
+    volumes:
+      - dbdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gdhcn"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  init:
+    image: alpine/openssl:latest
+    entrypoint: ["/bin/sh", "/init.sh"]
+    volumes:
+      - ./docker/demo/init.sh:/init.sh:ro
+      - secrets:/secrets
+      - tng:/tng
+
+  tng-mock:
+    image: nginx:1.29-alpine
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    volumes:
+      - ./docker/demo/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - tng:/usr/share/nginx/html:ro
+
+  app:
+    build: .
+    image: gdhcn-validator:demo
+    depends_on:
+      db:
+        condition: service_healthy
+      init:
+        condition: service_completed_successfully
+      tng-mock:
+        condition: service_started
+    ports:
+      - "8082:8082"
+    volumes:
+      - secrets:/secrets:ro
+      - ipsdata:/data
+    environment:
+      SPRING_PROFILES_ACTIVE: fileSystem
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/gdhcn
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: demo
+      TNG_TLS_PEM: /secrets/cert.pem
+      TNG_TLS_KEY: /secrets/key.pem
+      TNG_DSC_PRIVATEKEY: /secrets/key.pem
+      TNG_DSC_PRIVATEKEY_KID: demo-kid
+      TNG_COUNTRY: XM
+      GDHCN_DEV_URL: http://tng-mock
+      GDHCN_BASEURL: http://localhost:8082
+
+volumes:
+  dbdata:
+  secrets:
+  tng:
+  ipsdata:

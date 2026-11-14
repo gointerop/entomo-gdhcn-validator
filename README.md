@@ -123,6 +123,18 @@ For any questions or support, please reach out to <a href="">gdhcn@entomo.co</a>
 - COSE_Sign1 is implemented in-house (`hcert.CoseSign1`) on the maintained `com.upokecenter:cbor` library. It signs with ES256 and verifies ES256 and PS256 only; Ed25519/EdDSA is intentionally unsupported. `cose-java` is kept as a test-scope cross-check.
 - Building on JDK 23+ works because Lombok is configured explicitly as an annotation processor.
 
+## Try it (no configuration)
+
+```bash
+docker compose up --build
+```
+
+This starts PostgreSQL, generates throwaway keys, runs a mock of the WHO trust list and starts the validator on
+http://localhost:8082. In another terminal, `sh docker/demo/smoke.sh` issues a certificate, validates it through all nine
+steps, downloads the shared link and checks that a tampered code is rejected. Stop and discard everything with
+`docker compose down -v`. The demo is for evaluation only: its keys are generated locally, its database password is fixed and the
+trust list is a stand-in for the real WHO TNG. Use the configuration below for anything else.
+
 ## Docker
 
 ```bash
