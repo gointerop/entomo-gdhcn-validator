@@ -123,6 +123,18 @@ For any questions or support, please reach out to <a href="">gdhcn@entomo.co</a>
 - COSE_Sign1 is implemented in-house (`hcert.CoseSign1`) on the maintained `com.upokecenter:cbor` library. It signs with ES256 and verifies ES256 and PS256 only; Ed25519/EdDSA is intentionally unsupported. `cose-java` is kept as a test-scope cross-check.
 - Building on JDK 23+ works because Lombok is configured explicitly as an annotation processor.
 
+## Docker
+
+```bash
+docker build -t gdhcn-validator .
+docker run --rm -p 8082:8082 -v /path/to/secrets:/secrets:ro   -e SPRING_PROFILES_ACTIVE=fileSystem   -e SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/gdhcn   -e SPRING_DATASOURCE_USERNAME=... -e SPRING_DATASOURCE_PASSWORD=...   -e TNG_TLS_PEM=/secrets/tls.pem -e TNG_TLS_KEY=/secrets/tls.key   -e TNG_DSC_PRIVATEKEY=/secrets/dsc.key -e TNG_DSC_PRIVATEKEY_KID=<kid> -e TNG_COUNTRY=<ISO code>   gdhcn-validator
+```
+
+The image is multi-stage (Maven build, Temurin 21 JRE on Alpine), runs as a non-root user and listens on 8082. All settings
+are read from environment variables (Spring relaxed binding). Keys and certificates are mounted, never baked in
+(`.dockerignore` excludes `*.pem` / `*.key`). With the `fileSystem` profile, mount a volume on `/data` to keep issued IPS files.
+Flyway creates or baselines the schema on start. There is no health endpoint yet, so use a TCP check on port 8082 for probes.
+
 ## Database schema
 
 The schema is owned by Flyway (`src/main/resources/db/migration`); Hibernate only validates it (`ddl-auto=validate`).
